@@ -49,7 +49,6 @@ girafe(ggobj = p,
        options = 
          list(
            opts_hover(css = ""),
-           opts_hover_inv(css = "opacity:0;"),
-           opts_sizing(rescale = FALSE),
-           opts_
+           opts_hover_inv(css = "opacity:0.1;"),
+           opts_sizing(rescale = FALSE)
          ))
