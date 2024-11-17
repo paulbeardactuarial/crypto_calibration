@@ -11,6 +11,8 @@ tn_folder <- "./Thumbnails"
 
 dir(tn_folder, full.names = TRUE)
 
+source("./plot_open_over_time.R")
+source("./plot_empirical_returns.R")
 
 crypto_colours = c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Dogecoin" = "#987F50")
 crypto_levels <-names(crypto_colours)
@@ -33,59 +35,21 @@ dir(data_folder, full.names = TRUE) |>
 
 market_data |> plot_open_over_time()
 
-p1 <-
-market_data |> 
-  ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
-  geom_line_interactive(size = 1) +
-  geom_text_interactive(
-    data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
-    mapping = aes(label = crypto),
-    hjust = 0,
-    size = 4,
-    nudge_x = 60,
-    fontface = "bold"
-  ) +
-  theme_light() +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
-  scale_x_date(breaks = "2 years", name = "Date") +
-  scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
-  scale_color_manual(values = crypto_colours) +
-  coord_cartesian(xlim = as.Date(c(NA, "2025-01-01")))
+market_data |> plot_empirical_returns()
 
-
-p2 <-
+p <-
 market_data |> 
-  ggplot(mapping = aes(x = log_returns, fill = crypto, data_id = crypto)) +
-  geom_histogram_interactive(size = 1, bins = 10) +
-  geom_text_interactive(
-    data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
-    mapping = aes(label = crypto, color = crypto, x = 0, y= 0),
-    hjust = 0.5,
-    vjust = 1,
-    size = 4,
-    nudge_y = -1,
-    fontface = "bold"
-  ) +
-  theme_light() +
-  theme(legend.position = "none",
-        axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
+  ggplot(mapping = aes(x = crypto, y=log_returns, fill=crypto, color = crypto, data_id = crypto)) +
+  geom_violin_interactive() +
   scale_fill_manual(values = crypto_colours) +
-  scale_color_manual(values = crypto_colours) +
-  scale_y_continuous(name = "") +
-  scale_x_continuous(labels = scales::label_percent(), name = "") +
-  facet_wrap(vars(crypto), nrow = 1) +
-  theme(  strip.text = element_blank(),
-          strip.background = element_blank(),
-          axis.text.y = element_blank())
+scale_color_manual(values = crypto_colours)
 
 
-
-patchwork_plot <- p1/p2
-girafe(ggobj = patchwork_plot, 
-       options = list(
-         opts_hover(css = ""),
-         opts_hover_inv(css = "opacity: 0;"),
-         opts_sizing(rescale = FALSE)
-       )
-)
+girafe(ggobj = p,
+       options = 
+         list(
+           opts_hover(css = ""),
+           opts_hover_inv(css = "opacity:0;"),
+           opts_sizing(rescale = FALSE),
+           opts_
+         ))

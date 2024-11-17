@@ -10,6 +10,7 @@ p1 <-
     mapping = aes(label = crypto),
     hjust = 0,
     size = 4,
+    #position = position_dodge2(width = 1, padding = 1),
     nudge_x = 60,
     fontface = "bold"
   ) +
@@ -20,7 +21,6 @@ p1 <-
   scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
   scale_color_manual(values = crypto_colours) +
   coord_cartesian(xlim = as.Date(c(NA, "2025-01-01")))
-
 
 p2 <-
   market_data |> 
@@ -53,7 +53,7 @@ patchwork_plot <- p1/p2
 girafe(ggobj = patchwork_plot, 
        options = list(
          opts_hover(css = ""),
-         opts_hover_inv(css = "opacity: 0;"),
+         opts_hover_inv(css = "opacity:0.2;"),
          opts_sizing(rescale = FALSE)
        )
 )
