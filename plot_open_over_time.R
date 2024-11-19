@@ -45,7 +45,7 @@ plot_open_over_time <-
       theme_light() +
       theme(legend.position = "none",
             axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
-      coord_cartesian(xlim = as.Date(c(NA, "2028-01-01")), ylim = c(NA, 100000)) +
+      coord_cartesian(xlim = as.Date(c(NA, "2025-07-01")), ylim = c(NA, 100000)) +
       scale_color_manual(values = crypto_colours) 
     
     interactive_p <-

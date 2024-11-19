@@ -5,22 +5,22 @@ p1 <-
   market_data |> 
   ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
   geom_line_interactive(size = 1) +
-  geom_text_interactive(
-    data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
-    mapping = aes(label = crypto),
-    hjust = 0,
-    size = 4,
-    #position = position_dodge2(width = 1, padding = 1),
-    nudge_x = 60,
-    fontface = "bold"
-  ) +
-  theme_light() +
+  # geom_label_interactive(
+  #   data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
+  #   mapping = aes(label = crypto),
+  #   hjust = 0,
+  #   size = 4,
+  #   nudge_x = 120,
+  #   fontface = "bold",
+  #   padding = 0.5
+  # ) +
+  theme_classic() +
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
-  scale_x_date(breaks = "2 years", name = "Date") +
+  scale_x_date(breaks = "2 years", name = "") +
   scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
-  scale_color_manual(values = crypto_colours) +
-  coord_cartesian(xlim = as.Date(c(NA, "2025-01-01")))
+  scale_color_manual(values = crypto_colours) 
+  #coord_cartesian(xlim = as.Date(c(NA, "2025-01-01")))
 
 p2 <-
   market_data |> 
@@ -32,29 +32,58 @@ p2 <-
     hjust = 0.5,
     vjust = 1,
     size = 4,
-    nudge_y = -1,
+    nudge_y = -2,
     fontface = "bold"
   ) +
-  theme_light() +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.y = element_blank()) +
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
   scale_fill_manual(values = crypto_colours) +
   scale_color_manual(values = crypto_colours) +
   scale_y_continuous(name = "") +
   scale_x_continuous(labels = scales::label_percent(), name = "") +
-  facet_wrap(vars(crypto), nrow = 1) +
+  facet_wrap(vars(crypto), ncol = 1) +
   theme(  strip.text = element_blank(),
           strip.background = element_blank(),
-          axis.text.y = element_blank())
+          axis.text.y = element_blank()) +
+  coord_cartesian(ylim = as.Date(c(-10, NA)))
 
+p3 <-
+  market_data |> 
+  ggplot(mapping = aes(x = crypto, y=log_returns, fill=crypto, color = crypto, data_id = crypto)) +
+  geom_violin_interactive() +
+  scale_fill_manual(values = crypto_colours) +
+  scale_color_manual(values = crypto_colours) +
+  geom_text_interactive(
+    data = data.frame(crypto = unique(market_data$crypto), y_label = market_data$log_returns |> min(na.rm = T)),
+    mapping = aes(label = crypto, color = crypto, x = crypto, y= y_label),
+    hjust = 0.5,
+    vjust = 1,
+    size = 4,
+    nudge_y = -0.5,
+    fontface = "bold"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.line.x = element_blank()) +
+  scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
+  scale_x_discrete(name = "") +
+  coord_cartesian(ylim = c(market_data$log_returns |> min(na.rm = T) - 2, NA))
 
+patchwork_plot <-  (p1 / p3) | p2 
+ # plot_layout(widths = c(10, 6), heights = unit(c(10, 10), c('cm', 'null')))
 
-patchwork_plot <- p1/p2
 girafe(ggobj = patchwork_plot, 
        options = list(
          opts_hover(css = ""),
-         opts_hover_inv(css = "opacity:0.2;"),
-         opts_sizing(rescale = FALSE)
+         opts_hover_inv(css = "opacity:0.1;"),
+         opts_sizing(rescale = F)
        )
 )
 
