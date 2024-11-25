@@ -27,6 +27,8 @@ dir(tn_folder, full.names = TRUE)
 source("./plot_open_over_time.R")
 source("./plot_empirical_returns.R")
 
+risk_premium <- 0.03
+
 crypto_colours = c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Dogecoin" = "#987F50")
 crypto_levels <-names(crypto_colours)
 
@@ -43,10 +45,21 @@ dir(data_folder, full.names = TRUE) |>
   dplyr::filter(date <= as.Date("2023-05-01")) |> 
   arrange(crypto, date) |> 
   mutate(simple_returns_raw = dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)) |> 
-  mutate(simple_returns_neutral = (1 + simple_returns_raw) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |> 
+  mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |> 
   mutate(log_returns = log(1+simple_returns_neutral))
 
-
+fitted_distributions <-
+market_data |>
+  dplyr::summarise(
+    data = list(log_returns |> na.omit()),
+    fit_normal = list(data |> unlist() |> MASS::fitdistr("normal")),
+    #fit_studentt = list(data |> na.omit() |> MASS::fitdistr("t")),
+    fit_hyperbolic = list(data |> unlist() |> ghyp::fit.hypuv()),
+    fit_vgamma = list(data |> unlist() |> VarianceGamma::vgFit()),
+    .by = crypto
+    ) 
+  
+  
 ```
 
 
