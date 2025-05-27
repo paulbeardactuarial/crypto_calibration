@@ -52,7 +52,7 @@ plot_open_over_time <-
       girafe(ggobj = p, 
              options = list(
                opts_hover(css = ""),
-               opts_hover_inv(css = "opacity: 0;"),
+               opts_hover_inv(css = "opacity: 0.15;"),
                opts_sizing(rescale = FALSE)
              )
       )

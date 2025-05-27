@@ -5,6 +5,7 @@ p1 <-
   market_data |> 
   ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
   geom_line_interactive(size = 1) +
+  geom_hline(yintercept = 0) +
   # geom_label_interactive(
   #   data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
   #   mapping = aes(label = crypto),
@@ -28,13 +29,14 @@ p2 <-
   geom_histogram_interactive(size = 1, bins = 10) +
   geom_text_interactive(
     data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
-    mapping = aes(label = crypto, color = crypto, x = 0, y= 0),
-    hjust = 0.5,
-    vjust = 1,
+    mapping = aes(label = crypto, color = crypto, x = 0, y= Inf),
+    hjust = 1,
+    vjust = 1.5,
     size = 4,
-    nudge_y = -2,
+    angle = 90,
     fontface = "bold"
   ) +
+  geom_vline(xintercept = 0) +
   theme_classic() +
   theme(legend.position = "none",
         axis.text.y = element_blank(),
@@ -46,11 +48,11 @@ p2 <-
   scale_color_manual(values = crypto_colours) +
   scale_y_continuous(name = "") +
   scale_x_continuous(labels = scales::label_percent(), name = "") +
-  facet_wrap(vars(crypto), ncol = 1) +
+  facet_wrap(vars(crypto), nrow = 1) +
   theme(  strip.text = element_blank(),
           strip.background = element_blank(),
           axis.text.y = element_blank()) +
-  coord_cartesian(ylim = as.Date(c(-10, NA)))
+  coord_cartesian(ylim = as.Date(c(0, NA)))
 
 p3 <-
   market_data |> 
@@ -76,14 +78,14 @@ p3 <-
   scale_x_discrete(name = "") +
   coord_cartesian(ylim = c(market_data$log_returns |> min(na.rm = T) - 2, NA))
 
-patchwork_plot <-  (p1 / p3) | p2 
- # plot_layout(widths = c(10, 6), heights = unit(c(10, 10), c('cm', 'null')))
+patchwork_plot <-  (p1 / p2 )  
+# plot_layout(widths = c(10, 6, 10), heights = unit(c(10, 10, 10), c('cm', 'null')))
 
 girafe(ggobj = patchwork_plot, 
        options = list(
          opts_hover(css = ""),
-         opts_hover_inv(css = "opacity:0.1;"),
-         opts_sizing(rescale = F)
+         opts_hover_inv(css = "opacity:0.15;"),
+         opts_sizing(rescale = T)
        )
 )
 

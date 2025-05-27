@@ -2,6 +2,10 @@
 title: "Crypto Calibration"
 format: html
 editor: visual
+execute:
+  echo: false
+  message: false
+  warning: false
 ---
 
 ## Quarto
@@ -11,7 +15,10 @@ Quarto enables you to weave together content and executable code into a finished
 ## Running Code
 
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
 ```{r}
+#| labels: initial setup
+#| results: false
 library(ggplot2)
 library(tidyverse)
 library(ggiraph)
@@ -29,52 +36,176 @@ source("./plot_empirical_returns.R")
 
 risk_premium <- 0.03
 
-crypto_colours = c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Dogecoin" = "#987F50")
-crypto_levels <-names(crypto_colours)
+crypto_colours <- c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Dogecoin" = "#987F50")
+crypto_levels <- names(crypto_colours)
+last_date <- as.Date("2023-05-01")
 
 market_data <-
-dir(data_folder, full.names = TRUE) |> 
-  map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |> 
-  setNames(crypto_names) |> 
-  map(\(x) select(x, Date, Open, Vol.)) |> 
-  bind_rows(.id = "crypto") |> 
-  mutate(Date = as.Date(Date, tryFormats = c("%m/%d/%Y"))) |> 
-  janitor::clean_names() |> 
-  filter(crypto != "BNB") |> 
-  dplyr::mutate(crypto = factor(crypto, levels = crypto_levels)) |> 
-  dplyr::filter(date <= as.Date("2023-05-01")) |> 
-  arrange(crypto, date) |> 
-  mutate(simple_returns_raw = dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)) |> 
-  mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |> 
-  mutate(log_returns = log(1+simple_returns_neutral))
+  dir(data_folder, full.names = TRUE) |>
+  map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
+  setNames(crypto_names) |>
+  map(\(x) select(x, Date, Open, Vol.)) |>
+  bind_rows(.id = "crypto") |>
+  mutate(Date = as.Date(Date, tryFormats = c("%m/%d/%Y"))) |>
+  janitor::clean_names() |>
+  filter(crypto != "BNB") |>
+  dplyr::mutate(crypto = factor(crypto, levels = crypto_levels)) |>
+  dplyr::filter(date <= last_date) |>
+  arrange(crypto, date) |>
+  mutate(simple_returns_raw = dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)) |>
+  mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |>
+  mutate(log_returns = log(1 + simple_returns_neutral))
+
 
 fitted_distributions <-
-market_data |>
+  market_data |>
   dplyr::summarise(
     data = list(log_returns |> na.omit()),
-    fit_normal = list(data |> unlist() |> MASS::fitdistr("normal")),
+    fit_norm = list(data |> unlist() |> fitdistrplus::fitdist("norm", method = "mle")),
     #fit_studentt = list(data |> na.omit() |> MASS::fitdistr("t")),
-    fit_hyperbolic = list(data |> unlist() |> ghyp::fit.hypuv()),
-    fit_vgamma = list(data |> unlist() |> VarianceGamma::vgFit()),
+    fit_hyperb = list(data |> unlist() |> ghyp::fit.hypuv()),
+    fit_vg = list(data |> unlist() |> VarianceGamma::vgFit()),
     .by = crypto
-    ) 
-  
-  
+  ) |> 
+  tidyr::pivot_longer(cols = tidyselect::starts_with("fit"),
+                      names_to = "distribution",
+                      values_to = "model") |> 
+  dplyr::mutate(distribution = stringr::str_remove(distribution, "^fit_"))
 ```
 
+```{r}
 
+fitted_distributions$data[1]
+
+extract_data_percentiles <- function(data) {
+  x <- length(data)
+  data_percentiles <- seq(from = 1 / (2 * x), to = 1 - (1 / (2 * x)), by = 1 / x)
+  return(data_percentiles)
+}
+# 
+# fitted_distributions$percentiles <-
+# fitted_distributions$data |> 
+#  purrr::map(extract_data_percentiles)
+
+fitted_distributions <-
+fitted_distributions |> 
+  dplyr::mutate(
+    percentiles = purrr::map(data, .f = extract_data_percentiles),
+    quantiles = dplyr::pick(distribution, model, percentiles) |> 
+      purrr::pmap(.f = extract_fit_quantiles)
+  )
+
+fitted_distributions[1,] |> 
+  dplyr::select(distribution, model, percentiles) |> 
+  purrr::pmap(.f = extract_fit_quantiles)
+
+extract_fit_quantiles(
+  fitted_distributions$distribution[1], 
+  fitted_distributions$model[1], 
+  fitted_distributions$percentiles[1][[1]]
+)
+```
+
+## The Premise
+
+Hypothetical... you are the chief actuary of a major insurance company. You have invested significantly in the cryptocurrency markets. The regulator has requested to view your internal model calibration for this risk exposure, however in all the excitement of "hodling" you forgot to write one. What do you do!?
+
+Worry no more. The following article considers an approach for an internal model calibration of cryptocurrency risk. And is available to use free of charge.
+
+Disclaimer: This article is absolutely **NOT** an endorsement of cryptocurrency as an asset class. This calibration is also unlikely to get you out of trouble with the regulator.
+
+## Data Used
+
+### Source
+
+Index data was taken from a publicly available source: https://www.investing.com/. We have selected the data for value in GBP of the three of the largest cryptocurrencies by market capitalisation: Bitcoin (BTC), Ethereum (ETH) and Ripple (XRP).
+
+We have used data as far back as available, capped to 2012. This represents different start dates for different cryptocurrencies. We have:
+
+Jan-12 for BTC Feb-15 for XRP Apr-16 for ETH
+
+The data used is up until May-25, which was the latest available month at time of writing.
+
+We performed an array of stationarity tests on the Bitcoin dataset. In all cases p-values were above 0.05, meaning we could not reject any of the null hypotheses. This was both in tests where the null hypothesis was the data contains a trend, and when the null hypothesis was the data is level.
+
+The index data looks as follows:
 
 ```{r}
 
 market_data |> plot_open_over_time()
 ```
 
-You can add options to executable code like this
+### Transformation(s)
+
+Index data is transformed to monthly annual overlapping investment returns. The benefit of this is the generation of extra data points. Given the limited history of cryptocurrency, this was an essential transformation. The downside to this approach would be any autocorrelation within our datasets.
+
+We are completing our analysis on the excess-of-mean returns. To do this, we deducted the historical mean from our datasets, such that the mean of the simple returns is 0%. It should be noted that this was not a trivial amount for cryptocurrency.
+
+In this analysis we have chosen to use log returns. This has the advantage of allowing returns to occupy a range between ±∞, unlike simple returns which can theoretically be below -100%. This is particularly useful for the incredibly volatile asset that is crypto-currency, where distribution fitting would likely extend beyond the -100% for non-trivial probabilities.
+
+We then added in a risk premium to reflect the best estimate of expected returns for this asset class. When choosing a value it is worth considering what type of asset cryptocurrency is. If it is indeed a currency, then a risk premium of 0% would seem appropriate given currency is not a growth asset. However cryptocurrency appears to act more like a commodity that investors purchase in the hope that someone will pay more for it in the future. This is more akin to a bar of gold than a dollar.
+
+Given the asset acts more like a commodity, we are assuming the expected return to be similar to expected inflation. At time of writing (May 2023) the inflation rate is high, however the Office for Budget Responsibility (OBR) has predicted from 2024 rates will be much lower and closer to those seen in the 20 years prior. We have therefore set our risk premium to be 3%, the higher part of the range for target inflation. \[https://obr.uk/efo/economic-and-fiscal-outlook-march-2023\]
+
+It should be noted that when we combined these transformations, the mean of our datasets was very negative. For example the mean of log transformed BTC data, before adding any risk premium adjustments, was -58%. The reason is that the mean of a log returns dataset is lower than the mean of simple returns dataset by half of the variance of the simple returns. For most asset classes, this might not be an enormous number, but if cryptocurrency is anything, it’s a volatile asset. In the case of Bitcoin, the variance of the simple annualised returns was an enormous 106%, hence the very negative mean for the log transformed data.
+
+### Annualised Change
+
+We present the empirical data for our 4 chosen cryptocurrencies in the plots below. Firstly we show the time series of the annual log returns, as well as histograms of their distributions.
 
 ```{r}
-#| echo: false
+#| label: annual change plot
+#| echo: true
 
 market_data |> plot_empirical_returns()
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Perhaps the most striking things from the data are:
+
+-   The annualised log changes are enormous. For comparison a similar distribution for UK Equities would be very rare to see a point beyond the ±50% range.
+
+-   The 3 different cryptocurrencies are highly correlated in their movements. They almost move in complete synchronicity.
+
+-   The distributions have quite negative means. This is a consequence of our data transformations. The mean of log returns is lower than the mean of simple returns, by an amount proportional to the variance. This amount can often be trivial, however as the variance in these distributions is huge, the mean of log returns is a lot lower than 0%.
+
+## Distribution Fitting
+
+We tried to fit a range of distributions to each one of our data sets. The distributions attempted (with the number of parameters in parentheses) are:
+
+-   Normal (2)
+
+-   Logistic (2)
+
+-   Student T (3)
+
+-   Hyperbolic (4)
+
+We show the QQ plots for these fitting attempts below. We decided not to show the Student T as it typically converged to the Normal distribution and did not offer much alternative in terms of distribution choice.
+
+From the QQ plot we can infer:
+
+-   For BTC it is difficult to discern which distribution fits the best
+
+-   For ETH it seems the Normal distribution fits best
+
+-   For XRP it seems the Hyperbolic distribution fits best
+
+Also helpful in determining the best fit are fitting statistics. We have calculated the following values:
+
+-   Residual Sum of Squares (RSS) - this is the sum of least square values from our QQ plots. The lower the value, the better the fit.
+
+-   Maximum Likelihood Estimator (MLE) - this is the likelihood of our empirical points upon our fitted distribution. The higher the value, the better the fit.
+
+-   Akaike Information Criterion (AIC) - this is a fitting statistic based on the MLE. The lower the value, the better the fit.
+
+-   Bayes Information Criterion (BIC) - similar to AIC, this statistic also penalises higher distributions with more parameters. The lower the value, the better the fit.
+
+We present these in the tables below. To make deciphering easier, we have applied a colour scale over the table with redder values being poorer and whiter values being better fitting statistics:
+
+```{r}
+#| label: tables of fitting stats
+#| echo: true  
+ 
+# code to be added
+```
