@@ -161,6 +161,51 @@ extract_fit_quantiles <- function(distribution, model, percentiles) {
 
 extract_data_percentiles <- function(data) {
   x <- length(data)
-  data_percentiles <- seq(from = 1 / (2 * x), to = 1 - (1 / (2 * x)), by = 1 / x)
+  set_percentiles <- seq(from = 1 / (2 * x), to = 1 - (1 / (2 * x)), by = 1 / x)
+  data_percentiles <- set_percentiles[rank(data, ties.method = "first")]
   return(data_percentiles)
 }
+
+
+
+
+# ---------------------------------------------------------------------------
+# -------------------------extract_fitting_stats()------------------------
+# ---------------------------------------------------------------------------
+
+# WARNING THIS IS NOT FUNCTIONING CORRECTLY
+
+extract_fitting_stats <- function(empirical_quantiles,
+                      fitted_quantiles,
+                      distribution,
+                      model,
+                      parameters) {
+  # percentiles of data
+  x <- length(empirical_quantiles)
+  data.percentiles <- seq(from = 1 / (2 * x), to = 1 - 1 / (2 * x), by = 1 / x)
+  
+  # empirical quantiles
+  empirical_quantiles <- quantile(empirical_quantiles, data.percentiles)
+  
+  # populate fitting.stats dataframe
+  fs <- data.frame(Statistic = c("RSS", "MLE", "AIC", "BIC"), Value = c(0, 0, 0, 0))
+  
+  # RSS
+  fs$Value[1] <- sqrt(sum((fitted_quantiles - empirical_quantiles)^2))
+  
+  # MLE
+  fs$Value[2] <- ifelse(distribution %in% c("vg", "hyperb"),
+                        model$maxLik,
+                        model$loglik
+  )
+  
+  # AIC
+  fs$Value[3] <- 2 * sum(!is.na(parameters$Value)) - 2 * fs$Value[2]
+  
+  # BIC
+  fs$Value[4] <- log(length(empirical_quantiles)) * sum(!is.na(parameters$Value)) -2 * fs$Value[2]
+  
+  
+  return(fs)
+}
+

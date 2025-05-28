@@ -31,12 +31,9 @@ library(VarianceGamma) # <- required for vg distribution
 data_folder <- "./Data"
 crypto_names <- dir(data_folder, full.names = FALSE) |> str_remove(" Historical Data.csv")
 
-tn_folder <- "./Thumbnails"
-
-dir(tn_folder, full.names = TRUE)
-
 source("./plot_open_over_time.R")
 source("./plot_empirical_returns.R")
+source("./distribution_functions.R")
 
 risk_premium <- 0.03
 
@@ -51,7 +48,7 @@ market_data <-
   dir(data_folder, full.names = TRUE) |>
   map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
   setNames(crypto_names) |>
-  map(\(x) select(x, Date, Open, Vol.)) |>
+  map(\(x) dplyr::select(x, Date, Open, Vol.)) |>
   bind_rows(.id = "crypto") |>
   mutate(Date = as.Date(Date, tryFormats = c("%m/%d/%Y"))) |>
   janitor::clean_names() |>
@@ -66,13 +63,22 @@ market_data <-
 # =================================================
 # ============== Fit distributions ================
 # =================================================
+
+distributions = c(
+  "Normal" = "norm", 
+  "Logistic" = "logis", 
+  "Student T" = "t.scaled", 
+  "Hyperbolic" = "hyperb", 
+  "Variance-Gamma" = "vg"
+  )
+
 fitted_distributions <-
   market_data |>
   dplyr::summarise(
     data = list(log_returns |> na.omit()),
     .by = crypto
   ) |>
-  tidyr::expand_grid(distribution = c("norm", "logis", "t.scaled", "hyperb", "vg")) |>
+  tidyr::expand_grid(distribution = unname(distributions)) |>
   dplyr::mutate(
     model = purrr::map2(
       .x = distribution,
@@ -90,34 +96,6 @@ fitted_distributions <-
       purrr::pmap(.f = extract_fit_quantiles)
   )
 
-```
-
-```{r}
-
-fitted_distributions$data[1]
-
-
-# 
-# fitted_distributions$percentiles <-
-# fitted_distributions$data |> 
-#  purrr::map(extract_data_percentiles)
-
-fitted_distributions <-
-fitted_distributions |> 
-  dplyr::mutate(
-    ,
-    
-  )
-
-fitted_distributions[1,] |> 
-  dplyr::select(distribution, model, percentiles) |> 
-  purrr::pmap(.f = extract_fit_quantiles)
-
-extract_fit_quantiles(
-  fitted_distributions$distribution[1], 
-  fitted_distributions$model[1], 
-  fitted_distributions$percentiles[1][[1]]
-)
 ```
 
 ## The Premise
@@ -196,6 +174,57 @@ We tried to fit a range of distributions to each one of our data sets. The distr
 -   Hyperbolic (4)
 
 We show the QQ plots for these fitting attempts below. We decided not to show the Student T as it typically converged to the Normal distribution and did not offer much alternative in terms of distribution choice.
+
+```{r}
+#| label: QQ plot
+#| echo: true
+
+plot_data <- 
+fitted_distributions |> 
+  dplyr::select(-model) |> 
+  dplyr::rename(data_quantiles = data) |> 
+  tidyr::unnest(
+    cols = c(data_quantiles, data_percentiles, fitted_quantiles)
+  ) |> 
+  dplyr::filter(distribution != "vg") |> 
+  dplyr::mutate(
+    distribution = names(distributions)[match(distribution, distributions)],
+    distribution = factor(distribution, levels = names(distributions))
+  )
+
+plot_limits <- c(-5, 5)
+
+plot_data |>
+  ggplot() +
+  aes(
+    x = fitted_quantiles,
+    y = data_quantiles,
+    color = crypto
+  ) +
+  geom_abline(slope = 1, intercept = 0) +
+  geom_point(shape = 1) +
+  facet_grid(
+    rows = vars(distribution),
+    cols = vars(crypto)
+  ) +
+  scale_color_manual(values = crypto_colours) +
+  scale_x_continuous(
+    limits = plot_limits,
+    name = "Fitted Quantiles",
+    labels = scales::percent_format()
+  ) +
+  scale_y_continuous(
+    limits = plot_limits,
+    name = "Actual Quantiles",
+    labels = scales::percent_format()
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_rect(fill = "bisque1"),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) 
+```
 
 From the QQ plot we can infer:
 

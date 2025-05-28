@@ -81,6 +81,7 @@ p3 <-
 patchwork_plot <-  (p1 / p2 )  
 # plot_layout(widths = c(10, 6, 10), heights = unit(c(10, 10, 10), c('cm', 'null')))
 
+output <-
 girafe(ggobj = patchwork_plot, 
        options = list(
          opts_hover(css = ""),
@@ -89,4 +90,5 @@ girafe(ggobj = patchwork_plot,
        )
 )
 
+return(output)
 }
