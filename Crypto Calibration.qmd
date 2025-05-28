@@ -34,6 +34,9 @@ crypto_names <- dir(data_folder, full.names = FALSE) |> str_remove(" Historical 
 source("./plot_open_over_time.R")
 source("./plot_empirical_returns.R")
 source("./distribution_functions.R")
+source("./extract_fitting_statistics.R")
+source("./create_tabset.R")
+
 
 risk_premium <- 0.03
 
@@ -224,6 +227,7 @@ plot_data |>
     strip.background = element_rect(fill = "bisque1"),
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
   ) 
+  
 ```
 
 From the QQ plot we can infer:
@@ -246,9 +250,79 @@ Also helpful in determining the best fit are fitting statistics. We have calcula
 
 We present these in the tables below. To make deciphering easier, we have applied a colour scale over the table with redder values being poorer and whiter values being better fitting statistics:
 
+:::{.panel-tabset}
+
 ```{r}
 #| label: tables of fitting stats
-#| echo: true  
+#| echo: false  
+#| results: asis
  
 # code to be added
+fitting_stats_df <-
+fitted_distributions |> 
+  dplyr::mutate(
+    RSS = purrr::map2(
+      data, 
+      fitted_quantiles, 
+      function(x, y) extract_rss(x, y)
+      ) |> unlist(),
+    LogLik = purrr::map(
+      model, 
+      function(x) extract_loglik(x)
+      ) |> unlist(),
+    AIC = purrr::map(
+      model, 
+      function(x) extract_aic(x)
+      ) |> unlist(),
+    BIC = purrr::map(
+      model, 
+      function(x) extract_bic(x)
+      ) |> unlist()
+  ) |> 
+  dplyr::select(
+    crypto, distribution, RSS, LogLik, AIC, BIC
+  ) |> 
+  dplyr::filter(distribution != "vg") |> 
+  dplyr::mutate(
+    distribution = names(distributions)[match(distribution, distributions)],
+    distribution = factor(distribution, levels = names(distributions))
+  ) |> 
+  dplyr::rename(Distribution = distribution)
+
+
+
+format_fitting_stats_df <- function(df) {
+  df |> 
+  gt::gt() |> 
+  gt::fmt_number(columns = "RSS", decimals = 3) |> 
+  gt::fmt_number(columns = c("LogLik", "AIC", "BIC"), decimals = 1) |> 
+  gt::tab_style(
+    style = gt::cell_fill(color = "#008CBA"),
+    locations = gt::cells_column_labels()
+  ) |>
+  gt::data_color(
+    columns = dplyr::where(is.numeric),
+    colors = function(x) {
+      abs_x <- abs(x)
+      scales::col_numeric(
+        palette = "Oranges",
+        domain = range(abs_x, na.rm = TRUE)
+      )(abs_x)
+    },
+    apply_to = "fill",
+    autocolor_text = TRUE
+  ) |> 
+  gt::cols_width(dplyr::where(is.numeric) ~ gt::px(75)) |> 
+  gt::cols_align(columns = dplyr::where(is.numeric), align = "center")
+}
+
+fitting_stats_list <-
+fitting_stats_df |> 
+  dplyr::arrange(crypto) |> 
+  dplyr::group_split(crypto, .keep = FALSE) |> purrr::set_names(fitting_stats_df$crypto |> levels()) |> 
+  purrr::map(format_fitting_stats_df)
+
+fitting_stats_list |> create_tabset_for_render()
 ```
+
+:::

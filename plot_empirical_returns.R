@@ -4,7 +4,7 @@ function(market_data) {
 p1 <-
   market_data |> 
   ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
-  geom_line_interactive(size = 1) +
+  geom_line_interactive(size = 0.8) +
   geom_hline(yintercept = 0) +
   # geom_label_interactive(
   #   data = market_data |> slice_max(by = crypto, n = 1, order_by = date),

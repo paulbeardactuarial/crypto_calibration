@@ -180,12 +180,6 @@ extract_fitting_stats <- function(empirical_quantiles,
                       distribution,
                       model,
                       parameters) {
-  # percentiles of data
-  x <- length(empirical_quantiles)
-  data.percentiles <- seq(from = 1 / (2 * x), to = 1 - 1 / (2 * x), by = 1 / x)
-  
-  # empirical quantiles
-  empirical_quantiles <- quantile(empirical_quantiles, data.percentiles)
   
   # populate fitting.stats dataframe
   fs <- data.frame(Statistic = c("RSS", "MLE", "AIC", "BIC"), Value = c(0, 0, 0, 0))
@@ -208,4 +202,12 @@ extract_fitting_stats <- function(empirical_quantiles,
   
   return(fs)
 }
+
+
+
+
+
+
+
+
 
