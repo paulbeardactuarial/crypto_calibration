@@ -23,6 +23,10 @@ library(ggplot2)
 library(tidyverse)
 library(ggiraph)
 library(patchwork)
+library(fitdistrplus) # <- required for t.scaled/normal distribution
+library(metRology) # <- required for t.scaled distribution
+library(GeneralizedHyperbolic) # <- required for hyperb distribution
+library(VarianceGamma) # <- required for vg distribution
 
 data_folder <- "./Data"
 crypto_names <- dir(data_folder, full.names = FALSE) |> str_remove(" Historical Data.csv")
@@ -40,6 +44,9 @@ crypto_colours <- c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Do
 crypto_levels <- names(crypto_colours)
 last_date <- as.Date("2023-05-01")
 
+# =================================================
+# ============== Clean market data ================
+# =================================================
 market_data <-
   dir(data_folder, full.names = TRUE) |>
   map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
@@ -56,32 +63,40 @@ market_data <-
   mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |>
   mutate(log_returns = log(1 + simple_returns_neutral))
 
-
+# =================================================
+# ============== Fit distributions ================
+# =================================================
 fitted_distributions <-
   market_data |>
   dplyr::summarise(
     data = list(log_returns |> na.omit()),
-    fit_norm = list(data |> unlist() |> fitdistrplus::fitdist("norm", method = "mle")),
-    #fit_studentt = list(data |> na.omit() |> MASS::fitdistr("t")),
-    fit_hyperb = list(data |> unlist() |> ghyp::fit.hypuv()),
-    fit_vg = list(data |> unlist() |> VarianceGamma::vgFit()),
     .by = crypto
+  ) |>
+  tidyr::expand_grid(distribution = c("norm", "logis", "t.scaled", "hyperb", "vg")) |>
+  dplyr::mutate(
+    model = purrr::map2(
+      .x = distribution,
+      .y = data,
+      .f = function(x, y) fit_distribution(x, c(unlist(y)))
+    )
+  ) |>
+  dplyr::mutate(
+    data_percentiles = purrr::map(data, .f = extract_data_percentiles)
   ) |> 
-  tidyr::pivot_longer(cols = tidyselect::starts_with("fit"),
-                      names_to = "distribution",
-                      values_to = "model") |> 
-  dplyr::mutate(distribution = stringr::str_remove(distribution, "^fit_"))
+  dplyr::mutate(
+    fitted_quantiles = 
+      dplyr::pick(distribution, model, data_percentiles) |> 
+      dplyr::rename(percentiles = data_percentiles) |> 
+      purrr::pmap(.f = extract_fit_quantiles)
+  )
+
 ```
 
 ```{r}
 
 fitted_distributions$data[1]
 
-extract_data_percentiles <- function(data) {
-  x <- length(data)
-  data_percentiles <- seq(from = 1 / (2 * x), to = 1 - (1 / (2 * x)), by = 1 / x)
-  return(data_percentiles)
-}
+
 # 
 # fitted_distributions$percentiles <-
 # fitted_distributions$data |> 
@@ -90,9 +105,8 @@ extract_data_percentiles <- function(data) {
 fitted_distributions <-
 fitted_distributions |> 
   dplyr::mutate(
-    percentiles = purrr::map(data, .f = extract_data_percentiles),
-    quantiles = dplyr::pick(distribution, model, percentiles) |> 
-      purrr::pmap(.f = extract_fit_quantiles)
+    ,
+    
   )
 
 fitted_distributions[1,] |> 

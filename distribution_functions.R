@@ -20,7 +20,7 @@ fit_distribution <- function(distribution, data) {
                      "t.scaled" = {
                        # specify t.scaled fitting to have 3 attempts with different df starting values
                        # usually df=3 works, however sometimes optimal df value is very high and df=3 fails
-                       df.attempts <- c(3, 100, 10000)
+                       df_attempts <- c(3, 100, 10000)
                        fitted_distr_object <- NULL
                        attempt.no <- 1
                        
@@ -31,7 +31,7 @@ fit_distribution <- function(distribution, data) {
                                                  distr = distribution,
                                                  method = "mle",
                                                  start = list(
-                                                   df = df.attempts[attempt.no],
+                                                   df = df_attempts[attempt.no],
                                                    mean = mean(data),
                                                    sd = sd(data)
                                                  ),
@@ -133,20 +133,34 @@ collect_moments <- function(distribution,
 # ---------------------------------------------------------------------------
 
 extract_fit_quantiles <- function(distribution, model, percentiles) {
-
+  
+  if(length(model) == 1 & is.list(model[[1]])) {model <- model[[1]]}
+  if(is.list(percentiles)) {percentiles <- c(unlist(percentiles))}
+  
   quantiles <- switch(distribution,
                       
                       # variance-gamma
                       "vg" = VarianceGamma::qvg(percentiles, param = model$param),
                       
                       # hyperbolic
-                      "hyperb" = ghyp::qghyp(percentiles, model),
+                      "hyperb" = GeneralizedHyperbolic::qhyperb(percentiles, param = model$param),
                       
                       # all other distributions
                       quantile(model, probs = percentiles) |> 
-                        dplyr::pull(quantiles) |> 
+                        purrr::pluck("quantiles") |> 
                         unlist()
   )
   
-  return(quantiles)
+  return(quantiles |> unname())
+}
+
+
+# ---------------------------------------------------------------------------
+# -------------------------extract_data_percentiles()------------------------
+# ---------------------------------------------------------------------------
+
+extract_data_percentiles <- function(data) {
+  x <- length(data)
+  data_percentiles <- seq(from = 1 / (2 * x), to = 1 - (1 / (2 * x)), by = 1 / x)
+  return(data_percentiles)
 }
