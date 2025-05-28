@@ -180,7 +180,7 @@ We show the QQ plots for these fitting attempts below. We decided not to show th
 
 ```{r}
 #| label: QQ plot
-#| echo: true
+#| echo: false
 
 plot_data <- 
 fitted_distributions |> 
@@ -296,10 +296,10 @@ format_fitting_stats_df <- function(df) {
   gt::gt() |> 
   gt::fmt_number(columns = "RSS", decimals = 3) |> 
   gt::fmt_number(columns = c("LogLik", "AIC", "BIC"), decimals = 1) |> 
-  gt::tab_style(
-    style = gt::cell_fill(color = "#008CBA"),
-    locations = gt::cells_column_labels()
-  ) |>
+  # gt::tab_style(
+  #   style = gt::cell_fill(color = "#008CBA"),
+  #   locations = gt::cells_column_labels()
+  # ) |>
   gt::data_color(
     columns = dplyr::where(is.numeric),
     colors = function(x) {
@@ -312,8 +312,13 @@ format_fitting_stats_df <- function(df) {
     apply_to = "fill",
     autocolor_text = TRUE
   ) |> 
-  gt::cols_width(dplyr::where(is.numeric) ~ gt::px(75)) |> 
-  gt::cols_align(columns = dplyr::where(is.numeric), align = "center")
+  gt::cols_width(dplyr::where(is.numeric) ~ gt::px(80)) |> 
+  gt::cols_align(columns = dplyr::where(is.numeric), align = "center") |> 
+  gt::tab_options(
+        column_labels.background.color = "#008CBA",
+        quarto.disable_processing = TRUE
+        ) |>
+  gt::opt_vertical_padding(scale = 0.8)
 }
 
 fitting_stats_list <-
@@ -323,6 +328,7 @@ fitting_stats_df |>
   purrr::map(format_fitting_stats_df)
 
 fitting_stats_list |> create_tabset_for_render()
+
 ```
 
 :::
