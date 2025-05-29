@@ -418,7 +418,7 @@ By diversifying our portfolio we might remove specific risks (i.e. the risk of a
 
 
 # cross-asset correlation matrix
-asset_levels <- c("BTC", "FTSE100", "Gold")
+asset_levels <- c("BTC", "ETH", "XRP", "DGE", "FTSE100", "Gold")
 asset_files <- paste0(data_folder, "/", asset_levels, " Historical Data.csv")
 
 
@@ -426,8 +426,9 @@ date_ceiling <- as.Date("2025-05-01")
 date_floor <- as.Date("2012-01-01")
 
 # =================================================
-# ============== Clean market data ================
+# ============== Clean asset data ================
 # =================================================
+
 asset_data <-
   asset_files |>
   map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
@@ -441,38 +442,55 @@ asset_data <-
                 date >= date_floor) |>
   arrange(asset, date) |>
   mutate(simple_returns_raw = dplyr::if_else(asset == lag(asset, 12), (open / lag(open, 12)) - 1, NA)) |>
-  mutate(simple_returns_neutral = (1 + simple_returns_raw) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = asset) |>
+  mutate(simple_returns_neutral = 
+           (1 + simple_returns_raw) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, 
+         .by = asset) |>
   mutate(log_returns = log(1 + simple_returns_neutral)) |> 
   dplyr::filter(!is.na(log_returns)) |> 
   dplyr::select(asset, date, log_returns) |> 
-  tidyr::pivot_wider(names_from = asset, values_from = log_returns)
+  tidyr::pivot_wider(names_from = asset, values_from = log_returns) |> 
+  dplyr::select(-date)
+
+corr <- round(
+  cor(asset_data, method = "pearson", use = "pairwise.complete.obs"), 
+  2)
+
+corr_df <- 
+corr |> 
+  as.tibble() |> 
+  dplyr::mutate(asset_1 = rownames(corr)) |> 
+  tidyr::pivot_longer(cols = -"asset_1", names_to = "asset_2", values_to = "correlation") |> 
+  dplyr::mutate(
+    dplyr::across(.cols = c("asset_1", "asset_2"),
+                  .fns = function(x) factor(x, asset_levels)
+    )
+  )
 
 
-# 
-# 
-# crypto.pairs <- ggpairs(change.data %>% select(all_of(crypto.levels)),
-#   diag = NULL
-# ) +
-#   theme_classic() +
-#   theme(
-#     panel.border = element_rect(
-#       fill = NA,
-#       color = "black"
-#     ),
-#     strip.background = element_rect(fill = "bisque1")
-#   )
-# 
-# btc.asset.pairs <- ggpairs(change.data %>% select(all_of(c.assets)),
-#   diag = NULL
-# ) +
-#   theme_classic() +
-#   theme(
-#     panel.border = element_rect(
-#       fill = NA,
-#       color = "black"
-#     ),
-#     strip.background = element_rect(fill = "bisque1")
-#   )
+corr_df |> 
+  dplyr::filter(as.numeric(asset_1) <= as.numeric(asset_2)) |> 
+  dplyr::mutate(correlation = dplyr::if_else(asset_1 == asset_2, NA, correlation)) |> 
+  ggplot() +
+  aes(x = asset_1, y = asset_2, color = correlation) +
+  geom_point(size = 20) +
+    scale_color_gradient2(
+    low = "blue",
+    mid = "white", 
+    high = "red",
+    midpoint = 0,
+    limits = c(-1, 1),
+    oob = scales::censor,  
+    na.value = "grey35"
+  ) +
+  theme_classic() +
+  theme(
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank()
+  )
+
+
+
 
 
 ```
