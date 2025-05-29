@@ -29,7 +29,6 @@ library(GeneralizedHyperbolic) # <- required for hyperb distribution
 library(VarianceGamma) # <- required for vg distribution
 
 data_folder <- "./Data"
-crypto_names <- dir(data_folder, full.names = FALSE) |> str_remove(" Historical Data.csv")
 
 source("./plot_open_over_time.R")
 source("./plot_empirical_returns.R")
@@ -40,24 +39,27 @@ source("./create_tabset.R")
 
 risk_premium <- 0.03
 
-crypto_colours <- c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "Dogecoin" = "#987F50")
+crypto_colours <- c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "DGE" = "#987F50")
 crypto_levels <- names(crypto_colours)
-last_date <- as.Date("2023-05-01")
+crypto_files <- paste0(data_folder, "/", crypto_levels, " Historical Data.csv")
+
+date_ceiling <- as.Date("2025-05-01")
+date_floor <- as.Date("2012-01-01")
 
 # =================================================
 # ============== Clean market data ================
 # =================================================
 market_data <-
-  dir(data_folder, full.names = TRUE) |>
+  crypto_files |>
   map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
-  setNames(crypto_names) |>
+  setNames(crypto_levels) |>
   map(\(x) dplyr::select(x, Date, Open, Vol.)) |>
   bind_rows(.id = "crypto") |>
-  mutate(Date = as.Date(Date, tryFormats = c("%m/%d/%Y"))) |>
+  mutate(Date = as.Date(Date, tryFormats = c("%d/%m/%Y"))) |>
   janitor::clean_names() |>
-  filter(crypto != "BNB") |>
   dplyr::mutate(crypto = factor(crypto, levels = crypto_levels)) |>
-  dplyr::filter(date <= last_date) |>
+  dplyr::filter(date <= date_ceiling,
+                date >= date_floor) |>
   arrange(crypto, date) |>
   mutate(simple_returns_raw = dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)) |>
   mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |>
@@ -140,7 +142,7 @@ In this analysis we have chosen to use log returns. This has the advantage of al
 
 We then added in a risk premium to reflect the best estimate of expected returns for this asset class. When choosing a value it is worth considering what type of asset cryptocurrency is. If it is indeed a currency, then a risk premium of 0% would seem appropriate given currency is not a growth asset. However cryptocurrency appears to act more like a commodity that investors purchase in the hope that someone will pay more for it in the future. This is more akin to a bar of gold than a dollar.
 
-Given the asset acts more like a commodity, we are assuming the expected return to be similar to expected inflation. At time of writing (May 2023) the inflation rate is high, however the Office for Budget Responsibility (OBR) has predicted from 2024 rates will be much lower and closer to those seen in the 20 years prior. We have therefore set our risk premium to be 3%, the higher part of the range for target inflation. \[https://obr.uk/efo/economic-and-fiscal-outlook-march-2023\]
+Given the asset acts more like a commodity, we are assuming the expected return to be similar to expected inflation. At time of writing (May 2025) the inflation rate is high, however the Office for Budget Responsibility (OBR) has predicted from 2026 rates will be around 2%, with a range of around 0-5%. We have therefore set our risk premium to be 3%, closer to the current rate of inflation. \[https://obr.uk/efo/economic-and-fiscal-outlook-march-2025\]
 
 It should be noted that when we combined these transformations, the mean of our datasets was very negative. For example the mean of log transformed BTC data, before adding any risk premium adjustments, was -58%. The reason is that the mean of a log returns dataset is lower than the mean of simple returns dataset by half of the variance of the simple returns. For most asset classes, this might not be an enormous number, but if cryptocurrency is anything, it’s a volatile asset. In the case of Bitcoin, the variance of the simple annualised returns was an enormous 106%, hence the very negative mean for the log transformed data.
 
@@ -181,6 +183,7 @@ We show the QQ plots for these fitting attempts below. We decided not to show th
 ```{r}
 #| label: QQ plot
 #| echo: false
+#| out-width: "100%"
 
 plot_data <- 
 fitted_distributions |> 
@@ -290,16 +293,23 @@ fitted_distributions |>
   dplyr::rename(Distribution = distribution)
 
 
+gt_theme <- function(gt) {
+  
+  gt |> 
+      gt::cols_align(columns = dplyr::where(is.numeric), align = "center") |> 
+  gt::tab_options(
+        column_labels.background.color = "#008CBA",
+        quarto.disable_processing = TRUE
+        ) |>
+  gt::opt_vertical_padding(scale = 0.8)
+}
+
 
 format_fitting_stats_df <- function(df) {
   df |> 
   gt::gt() |> 
   gt::fmt_number(columns = "RSS", decimals = 3) |> 
   gt::fmt_number(columns = c("LogLik", "AIC", "BIC"), decimals = 1) |> 
-  # gt::tab_style(
-  #   style = gt::cell_fill(color = "#008CBA"),
-  #   locations = gt::cells_column_labels()
-  # ) |>
   gt::data_color(
     columns = dplyr::where(is.numeric),
     colors = function(x) {
@@ -312,13 +322,10 @@ format_fitting_stats_df <- function(df) {
     apply_to = "fill",
     autocolor_text = TRUE
   ) |> 
-  gt::cols_width(dplyr::where(is.numeric) ~ gt::px(80)) |> 
-  gt::cols_align(columns = dplyr::where(is.numeric), align = "center") |> 
-  gt::tab_options(
-        column_labels.background.color = "#008CBA",
-        quarto.disable_processing = TRUE
-        ) |>
-  gt::opt_vertical_padding(scale = 0.8)
+  gt::cols_width(dplyr::where(is.numeric) ~ gt::px(90),
+                 "Distribution" ~ gt::px(160)) |> 
+    gt_theme()
+
 }
 
 fitting_stats_list <-
@@ -332,3 +339,48 @@ fitting_stats_list |> create_tabset_for_render()
 ```
 
 :::
+
+
+
+```{r}
+#| label: final distributions
+#| echo: false  
+ 
+# code to be added
+
+sample_percentiles <- c(0.995, 0.975, 0.9, 0.5, 0.1, 0.025, 0.005)
+
+sample_distributions <-
+fitted_distributions |> 
+  dplyr::filter(distribution == "hyperb") |> 
+  dplyr::mutate(sample_percentiles = list(sample_percentiles)) |> 
+  dplyr::mutate(
+    sample_quantiles = purrr::map2(
+      .x = distribution,
+      .y = model,
+      .f = function(x, y) {
+        extract_fit_quantiles(
+          x,
+          y,
+          percentiles = .env$sample_percentiles)
+      })
+  )
+
+key_percentiles_df <-
+sample_distributions |> 
+  dplyr::select(crypto, sample_percentiles, sample_quantiles) |> 
+  tidyr::unnest(cols = c("sample_percentiles", "sample_quantiles")) |> 
+  dplyr::mutate(sample_quantiles = exp(sample_quantiles) - 1) |> 
+  tidyr::pivot_wider(names_from = crypto, values_from = sample_quantiles) |> 
+  dplyr::arrange(desc(sample_percentiles)) |> 
+  dplyr::rename(Percentile = sample_percentiles) 
+
+key_percentiles_gt <-
+  key_percentiles_df |> 
+  gt::gt() |> 
+  gt::fmt_percent(columns = -"Percentile", decimals = 1, force_sign = TRUE) |> 
+  gt::fmt_percent(columns = "Percentile", decimals = 1) |> 
+  gt_theme()
+
+```
+

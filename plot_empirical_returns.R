@@ -6,22 +6,12 @@ p1 <-
   ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
   geom_line_interactive(size = 0.8) +
   geom_hline(yintercept = 0) +
-  # geom_label_interactive(
-  #   data = market_data |> slice_max(by = crypto, n = 1, order_by = date),
-  #   mapping = aes(label = crypto),
-  #   hjust = 0,
-  #   size = 4,
-  #   nudge_x = 120,
-  #   fontface = "bold",
-  #   padding = 0.5
-  # ) +
   theme_classic() +
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
   scale_x_date(breaks = "2 years", name = "") +
   scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
   scale_color_manual(values = crypto_colours) 
-  #coord_cartesian(xlim = as.Date(c(NA, "2025-01-01")))
 
 p2 <-
   market_data |> 
