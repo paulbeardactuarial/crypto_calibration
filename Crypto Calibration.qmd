@@ -40,6 +40,7 @@ source("./create_tabset.R")
 risk_premium <- 0.03
 
 crypto_colours <- c("BTC" = "#f7931a", "ETH" = "#116797", "XRP" = "#2f2c56", "DGE" = "#987F50")
+base_colour <- "#008CBA"
 crypto_levels <- names(crypto_colours)
 crypto_files <- paste0(data_folder, "/", crypto_levels, " Historical Data.csv")
 
@@ -154,7 +155,9 @@ We present the empirical data for our 4 chosen cryptocurrencies in the plots bel
 #| label: annual change plot
 #| echo: true
 
-market_data |> plot_empirical_returns()
+market_data |> 
+  dplyr::filter(!is.na(log_returns)) |> 
+  plot_empirical_returns(crypto_colours)
 
 ```
 
@@ -184,6 +187,7 @@ We show the QQ plots for these fitting attempts below. We decided not to show th
 #| label: QQ plot
 #| echo: false
 #| out-width: "100%"
+#| fig-asp: 1
 
 plot_data <- 
 fitted_distributions |> 
@@ -227,7 +231,7 @@ plot_data |>
   theme_bw() +
   theme(
     legend.position = "none",
-    strip.background = element_rect(fill = "bisque1"),
+    strip.background = element_rect(fill = base_colour),
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
   ) 
   
@@ -293,12 +297,12 @@ fitted_distributions |>
   dplyr::rename(Distribution = distribution)
 
 
-gt_theme <- function(gt) {
+gt_theme <- function(gt, base_colour = "#008CBA") {
   
   gt |> 
       gt::cols_align(columns = dplyr::where(is.numeric), align = "center") |> 
   gt::tab_options(
-        column_labels.background.color = "#008CBA",
+        column_labels.background.color =  base_colour,
         quarto.disable_processing = TRUE
         ) |>
   gt::opt_vertical_padding(scale = 0.8)
@@ -315,7 +319,7 @@ format_fitting_stats_df <- function(df) {
     colors = function(x) {
       abs_x <- abs(x)
       scales::col_numeric(
-        palette = "Oranges",
+        palette = c("white", "salmon1"),
         domain = range(abs_x, na.rm = TRUE)
       )(abs_x)
     },
@@ -334,19 +338,27 @@ fitting_stats_df |>
   dplyr::group_split(crypto, .keep = FALSE) |> purrr::set_names(fitting_stats_df$crypto |> levels()) |> 
   purrr::map(format_fitting_stats_df)
 
-fitting_stats_list |> create_tabset_for_render()
+fitting_stats_list |> create_tabset()
 
 ```
 
 :::
 
+## Final Distributions
 
+Our final chosen fitted distributions are:
+
+BTC - Hyperbolic
+ETH - Hyperbolic
+XRP - Hyperbolic
+DGE - Hyperbolic
+
+Below we show the key percentiles for change in asset value over a one year time horizon. To make the results easier to interpret, we have converted the annualised log returns back into annualised simple returns.
 
 ```{r}
 #| label: final distributions
 #| echo: false  
  
-# code to be added
 
 sample_percentiles <- c(0.995, 0.975, 0.9, 0.5, 0.1, 0.025, 0.005)
 
@@ -382,5 +394,87 @@ key_percentiles_gt <-
   gt::fmt_percent(columns = "Percentile", decimals = 1) |> 
   gt_theme()
 
+key_percentiles_gt
+
 ```
 
+It is quite clear that a 1-in-200 event would essentially wipe out all cryptocurrency value. In fact, even a 1-in-10 event would cause significant damage to asset values. 
+
+Even the median of these distributions is very negative, with a 1-in-2 event seeing Bitcoin values almost half over the year. The reason we observe this is a consequence of using log transformed returns to fit our distributions to. This was explained at the end of the ‘Data Transformation’ section.
+
+Another consideration to make would be to have an overlay for this risk distribution. This would be with the aim of recognizing that we have fitted our distribution to a fairly short time period of of around 8-13 years, which could mean there are no extreme tail events within the dataset. 
+
+The risks to any single currency are not insignificant. https://www.hedgewithcrypto.com/ notes that there have been between 1,700 and 2,500 cryptocurrencies to collapse into zero value. The largest being ‘Luna’ which had been a top 10 crypto by market capitalisation before reaching naught.
+
+This information may be a reason to apply an overlay to our current distributions. However we have decided not to at this point on grounds of materiality. We note that our current distributions already capture a very significant portion of downside risk. We might also hope that a highly diversified crypto portfolio could eliminate some of this risk specific to each individual crypto.
+
+## Crypto Intra-Dependencies
+
+By diversifying our portfolio we might remove specific risks (i.e. the risk of an individual crypto collapsing, like Luna). However systemic risk may still exist across all cryptocurrencies. We consider the correlations between our historical datasets. By calculating Spearman’s rank correlation, we derive the following correlogram.
+
+```{r}
+#| label: correlations
+#| echo: false  
+
+
+# cross-asset correlation matrix
+asset_levels <- c("BTC", "FTSE100", "Gold")
+asset_files <- paste0(data_folder, "/", asset_levels, " Historical Data.csv")
+
+
+date_ceiling <- as.Date("2025-05-01")
+date_floor <- as.Date("2012-01-01")
+
+# =================================================
+# ============== Clean market data ================
+# =================================================
+asset_data <-
+  asset_files |>
+  map(\(x) read_csv(x, col_types = c(Date = "c", Open = "n", `Vol.` = "c"))) |>
+  setNames(asset_levels) |>
+  map(\(x) dplyr::select(x, Date, Open, Vol.)) |>
+  bind_rows(.id = "asset") |>
+  mutate(Date = as.Date(Date, tryFormats = c("%d/%m/%Y"))) |>
+  janitor::clean_names() |>
+  dplyr::mutate(asset = factor(asset, levels = asset_levels)) |>
+  dplyr::filter(date <= date_ceiling,
+                date >= date_floor) |>
+  arrange(asset, date) |>
+  mutate(simple_returns_raw = dplyr::if_else(asset == lag(asset, 12), (open / lag(open, 12)) - 1, NA)) |>
+  mutate(simple_returns_neutral = (1 + simple_returns_raw) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = asset) |>
+  mutate(log_returns = log(1 + simple_returns_neutral)) |> 
+  dplyr::filter(!is.na(log_returns)) |> 
+  dplyr::select(asset, date, log_returns) |> 
+  tidyr::pivot_wider(names_from = asset, values_from = log_returns)
+
+
+# 
+# 
+# crypto.pairs <- ggpairs(change.data %>% select(all_of(crypto.levels)),
+#   diag = NULL
+# ) +
+#   theme_classic() +
+#   theme(
+#     panel.border = element_rect(
+#       fill = NA,
+#       color = "black"
+#     ),
+#     strip.background = element_rect(fill = "bisque1")
+#   )
+# 
+# btc.asset.pairs <- ggpairs(change.data %>% select(all_of(c.assets)),
+#   diag = NULL
+# ) +
+#   theme_classic() +
+#   theme(
+#     panel.border = element_rect(
+#       fill = NA,
+#       color = "black"
+#     ),
+#     strip.background = element_rect(fill = "bisque1")
+#   )
+
+
+```
+
+Cryptocurrencies are very highly correlated in their market movements. There is barely any systemic diversification benefit between the currencies. Given the very high correlation already in our historical data, we would suggest using the same risk driver to model all cryptocurrency risk would likely be sufficient.

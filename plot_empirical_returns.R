@@ -1,6 +1,6 @@
 
 plot_empirical_returns <-
-function(market_data) {
+function(market_data, crypto_colours) {
 p1 <-
   market_data |> 
   ggplot(mapping = aes(x = date, y = log_returns, color = crypto, data_id = crypto)) +
