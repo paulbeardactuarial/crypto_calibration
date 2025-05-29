@@ -9,7 +9,7 @@ p1 <-
   theme_classic() +
   theme(legend.position = "none",
         axis.text.x = element_text(angle = 45, hjust = 1, family = "sans")) +
-  scale_x_date(breaks = "2 years", name = "") +
+  scale_x_date(breaks = "1 years", name = "") +
   scale_y_continuous(name = "Annual Log Returns", labels = scales::label_percent()) +
   scale_color_manual(values = crypto_colours) 
 

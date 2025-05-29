@@ -257,8 +257,7 @@ Also helpful in determining the best fit are fitting statistics. We have calcula
 
 We present these in the tables below. To make deciphering easier, we have applied a colour scale over the table with redder values being poorer and whiter values being better fitting statistics:
 
-:::{.panel-tabset}
-
+::: panel-tabset
 ```{r}
 #| label: tables of fitting stats
 #| echo: false  
@@ -341,17 +340,13 @@ fitting_stats_df |>
 fitting_stats_list |> create_tabset()
 
 ```
-
 :::
 
 ## Final Distributions
 
 Our final chosen fitted distributions are:
 
-BTC - Hyperbolic
-ETH - Hyperbolic
-XRP - Hyperbolic
-DGE - Hyperbolic
+BTC - Hyperbolic ETH - Hyperbolic XRP - Hyperbolic DGE - Hyperbolic
 
 Below we show the key percentiles for change in asset value over a one year time horizon. To make the results easier to interpret, we have converted the annualised log returns back into annualised simple returns.
 
@@ -398,19 +393,19 @@ key_percentiles_gt
 
 ```
 
-It is quite clear that a 1-in-200 event would essentially wipe out all cryptocurrency value. In fact, even a 1-in-10 event would cause significant damage to asset values. 
+It is quite clear that a 1-in-200 event would essentially wipe out all cryptocurrency value. In fact, even a 1-in-10 event would cause significant damage to asset values.
 
 Even the median of these distributions is very negative, with a 1-in-2 event seeing Bitcoin values almost half over the year. The reason we observe this is a consequence of using log transformed returns to fit our distributions to. This was explained at the end of the ‘Data Transformation’ section.
 
-Another consideration to make would be to have an overlay for this risk distribution. This would be with the aim of recognizing that we have fitted our distribution to a fairly short time period of of around 8-13 years, which could mean there are no extreme tail events within the dataset. 
+Another consideration to make would be to have an overlay for this risk distribution. This would be with the aim of recognizing that we have fitted our distribution to a fairly short time period of of around 8-13 years, which could mean there are no extreme tail events within the dataset.
 
 The risks to any single currency are not insignificant. https://www.hedgewithcrypto.com/ notes that there have been between 1,700 and 2,500 cryptocurrencies to collapse into zero value. The largest being ‘Luna’ which had been a top 10 crypto by market capitalisation before reaching naught.
 
 This information may be a reason to apply an overlay to our current distributions. However we have decided not to at this point on grounds of materiality. We note that our current distributions already capture a very significant portion of downside risk. We might also hope that a highly diversified crypto portfolio could eliminate some of this risk specific to each individual crypto.
 
-## Crypto Intra-Dependencies
+## Correlations
 
-By diversifying our portfolio we might remove specific risks (i.e. the risk of an individual crypto collapsing, like Luna). However systemic risk may still exist across all cryptocurrencies. We consider the correlations between our historical datasets. By calculating Spearman’s rank correlation, we derive the following correlogram.
+We consider the correlations of market movements between cryptocurrencies, as well as against other asset classes. By calculating Spearman’s rank correlation, we construct a correlation matrix, which is visualised below:
 
 ```{r}
 #| label: correlations
@@ -452,7 +447,7 @@ asset_data <-
   dplyr::select(-date)
 
 corr <- round(
-  cor(asset_data, method = "pearson", use = "pairwise.complete.obs"), 
+  cor(asset_data, method = "spearman", use = "pairwise.complete.obs"), 
   2)
 
 corr_df <- 
@@ -464,35 +459,88 @@ corr |>
     dplyr::across(.cols = c("asset_1", "asset_2"),
                   .fns = function(x) factor(x, asset_levels)
     )
-  )
+  ) |> 
+    dplyr::filter(as.numeric(asset_1) <= as.numeric(asset_2)) |> 
+  dplyr::mutate(correlation = dplyr::if_else(asset_1 == asset_2, NA, correlation))
 
-
+corr_plot_gg <- 
 corr_df |> 
-  dplyr::filter(as.numeric(asset_1) <= as.numeric(asset_2)) |> 
-  dplyr::mutate(correlation = dplyr::if_else(asset_1 == asset_2, NA, correlation)) |> 
+  dplyr::filter(asset_1 != asset_2) |> 
   ggplot() +
-  aes(x = asset_1, y = asset_2, color = correlation) +
-  geom_point(size = 20) +
-    scale_color_gradient2(
+  aes(x = asset_1, y = asset_2) +
+    geom_point(data = corr_df |> dplyr::filter(asset_1 == asset_2), 
+               alpha = 1,
+               size = 20,
+               color = "grey35") +
+  geom_point_interactive(
+    mapping = aes(fill = correlation,
+                  tooltip = glue::glue("{asset_2} vs {asset_1}:",
+                                       "<br>",
+                                       "{scales::number(correlation, accuracy = 0.01, style_positive = 'plus')}")),
+    size = 20,
+    shape = 21,
+    color = "grey35"
+    ) +
+    scale_fill_gradient2(
     low = "blue",
     mid = "white", 
     high = "red",
     midpoint = 0,
     limits = c(-1, 1),
     oob = scales::censor,  
-    na.value = "grey35"
+    na.value = "grey35",
+    name = "Correlation",
+    labels = scales::number_format(accuracy = 0.1, style_positive = 'plus')
   ) +
   theme_classic() +
+    guides(
+    fill = guide_colourbar(position = "inside")
+  ) +
   theme(
     axis.line = element_blank(),
     axis.ticks = element_blank(),
-    axis.title = element_blank()
+    axis.title = element_blank(),
+    legend.position.inside = c(0.95, 0.15),
+    legend.justification = c("right", "bottom")
   )
 
 
-
+girafe(ggobj = corr_plot_gg,
+       options = list(ggiraph::opts_tooltip(css = "color:black; padding: 6px; border-radius: 10px; ", use_fill = TRUE)))
 
 
 ```
 
-Cryptocurrencies are very highly correlated in their market movements. There is barely any systemic diversification benefit between the currencies. Given the very high correlation already in our historical data, we would suggest using the same risk driver to model all cryptocurrency risk would likely be sufficient.
+### Crypto Intra-dependencies
+
+By diversifying our portfolio we might remove specific risks (i.e. the risk of an individual crypto collapsing, like Luna). However systemic risk may still exist across all cryptocurrencies.
+
+Cryptocurrencies are very highly correlated in their market movements. There is barely any systemic diversification benefit between the currencies. Given the very high correlation already in our historical data, we would suggest using the same risk driver to model all cryptocurrency risk in a portfolio would likely be sufficient.
+
+### Crypto Inter-dependencies
+
+How does cryptocurrency correlate with other asset classes? Bitcoin is sometimes described as “Digital Gold” \[https://www.db.com/what-next/digital-disruption/dossier-payments/i-could-potentially-see-bitcoin-to-become-the-21st-century-gold\]. Earlier we likened the two assets when trying to assign a risk premium for our crypto coins. Gold is a commodity. It is also negatively correlated to market trends in major asset classes such as equities. When the market takes a downturn, gold can often rise as investors see it to be a safe haven. As such gold can provide utility as a partial hedge within an investment portfolio.
+
+Based on the correlations of cryptocurrency against Gold Futures and FTSE 100, we draw the following conclusions:
+
+-   Gold is (weakly) negatively correlated to the UK Equity market, as shown by the correlation of -0.15. It could be considered as a good asset for diversification in an equity rich portfolio.
+
+-   Cryptocurrency acts nothing like Gold. The correlation is close to zero for all cryptocurrencies tested.
+
+-   Cryptocurrency is positively correlated to the FTSE 100, and not by a neglible amount. BTC scores a correlation on +0.50 against the FTSE 100. It appears to offer little in the way of hedging to the UK Equity market. If we take the price of gold to reflect (lack of) confidence in the market, it seems Bitcoin does not copy this reflection at all.
+
+-   With material positive correlation to UK Equity market, and the extreme distributions we have fitted to cryptocurrency data, it is likely most insurance companies would observe an obliteration of crypto values within their biting scenario (if they held crypto).
+
+## Conclusion
+
+The following conclusions can be made:
+
+-   Cryptocurrencies are incredibly volatile.
+
+-   Applying our techniques lead to a distribution where only a 1-in-10 event would see almost all asset value wiped out. Even a median event will see asset values decline sharply.
+
+-   Cryptocurrencies are highly correlated between each other in market movements. There is no doubt modeling all crypto assets with the same risk driver would be sufficient.
+
+-   Crypto assets are positively correlated with the UK equity market. Given equity risk is often a significant risk for a major insurer, we expect many SCR biting scenarios to be at the negative end of the distribution for equities. Given this correlation, the crypto biting scenario will also likely be at the negative end of the distribution.
+
+-   Given all these points above, we would expect the overall biting scenario for a major insurer to see cryptocurrency value completely decimated. The conclusion reached is that **almost all assets held as cryptocurrency will increase the SCR of a company by a similar amount**. This conclusion might lead an actuary to question how capital efficient it is to invest in crypto.

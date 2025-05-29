@@ -33,7 +33,7 @@ plot_open_over_time <-
         size = 3
       ) +
       geom_line_interactive(size = 1) +
-      scale_x_date(breaks = "2 years", name = "Date") +
+      scale_x_date(breaks = "1 years", name = "Date") +
       scale_y_log10(breaks = 10^seq(-2, 6, by=1), 
                     label = scales::label_currency(accuracy = 0.01),
                     name = "Opening Price") +
