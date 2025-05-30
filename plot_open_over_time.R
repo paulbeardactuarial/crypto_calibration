@@ -1,7 +1,8 @@
 plot_open_over_time <-
   function(data,
            xlim = as.Date(c(NA, "2027-01-01")),
-           ylim = c(NA, 150000)) {
+           ylim = c(NA, 150000),
+           make_interactive = TRUE) {
     p <-
       market_data |>
       ggplot(aes(x = date, y = open, color = crypto, data_id = crypto)) +
@@ -54,7 +55,8 @@ plot_open_over_time <-
       coord_cartesian(xlim = xlim, ylim = ylim) +
       scale_color_manual(values = crypto_colours)
 
-    interactive_p <-
+    if(make_interactive) {
+    p <-
       girafe(
         ggobj = p,
         options = list(
@@ -63,6 +65,7 @@ plot_open_over_time <-
           opts_sizing(rescale = FALSE)
         )
       )
+    }
 
-    return(interactive_p)
+    return(p)
   }

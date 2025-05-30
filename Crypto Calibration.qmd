@@ -1,5 +1,5 @@
 ---
-title: "Crypto Calibration"
+title: "Crypto Risk Calibration"
 format: html
 editor: visual
 execute:
@@ -8,17 +8,18 @@ execute:
   warning: false
 ---
 
-## Quarto
+![](images/ChatGPT%20Image%20May%2030,%202025,%2002_36_32%20PM.png){fig-align="center" width="684" height="348"}
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+Cryptocurrency first manifested into existence in 2008, when the first ever Bitcoin was mined. It has since grown, with thousands of variants now available to purchase by the armchair investor. Some financial institutions have also gotten in on the game, although the level of trading pales compared to other major asset classes.
 
-## Running Code
+By applying principles used by insurance companies in asset risk calibration, I have constructed a risk calibration for cryptocurrency risk. I am not aware of any insurers who would need such a calibration, but if they did, they might take inspiration from this article.
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+**Disclaimer**: This article is **NOT** an endorsement of cryptocurrency as an asset class.
 
 ```{r}
 #| labels: initial setup
 #| results: false
+
 library(ggplot2)
 library(tidyverse)
 library(ggiraph)
@@ -62,8 +63,13 @@ market_data <-
   dplyr::filter(date <= date_ceiling,
                 date >= date_floor) |>
   arrange(crypto, date) |>
-  mutate(simple_returns_raw = dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)) |>
-  mutate(simple_returns_neutral = (1 + simple_returns_raw) * (1 + risk_premium) / mean(1 + simple_returns_raw, na.rm = TRUE) - 1, .by = crypto) |>
+  mutate(simple_returns_raw = 
+           dplyr::if_else(crypto == lag(crypto, 12), (open / lag(open, 12)) - 1, NA)
+         ) |>
+  mutate(simple_returns_neutral = 
+           (1 + simple_returns_raw) * (1 + risk_premium) / 
+           mean(1 + simple_returns_raw, na.rm = TRUE) - 1, 
+         .by = crypto) |>
   mutate(log_returns = log(1 + simple_returns_neutral))
 
 # =================================================
@@ -106,21 +112,25 @@ fitted_distributions <-
 
 ## The Premise
 
-Hypothetical... you are the chief actuary of a major insurance company. You have invested significantly in the cryptocurrency markets. The regulator has requested to view your internal model calibration for this risk exposure, however in all the excitement of "hodling" you forgot to write one. What do you do!?
+An insurance company has a non-trivial holding in the cryptocurrency markets. An internal model calibration for this risk exposure is required. By applying some of the principles used for other major asset classes, such as property and equity, I consider what that risk calibration might look like.
 
-Worry no more. The following article considers an approach for an internal model calibration of cryptocurrency risk. And is available to use free of charge.
+It is also expected that the insurance company would have a significant holding in UK equity markets, and that the insurer has a risk scenario generator. These assumptions are necessary when considering how our cryptocurrency risk might contribute to the final SCR of a company.
 
-Disclaimer: This article is absolutely **NOT** an endorsement of cryptocurrency as an asset class. This calibration is also unlikely to get you out of trouble with the regulator.
+## Data
 
-## Data Used
+### Empirical Data
 
-### Source
-
-Index data was taken from a publicly available source: https://www.investing.com/. We have selected the data for value in GBP of the three of the largest cryptocurrencies by market capitalisation: Bitcoin (BTC), Ethereum (ETH) and Ripple (XRP).
+Index data was taken from a publicly available source: <https://www.investing.com/>. We have selected the data for value in GBP of the four of the largest cryptocurrencies by market capitalisation: Bitcoin (BTC), Ethereum (ETH), Ripple (XRP), and Dogecoin (DGE).
 
 We have used data as far back as available, capped to 2012. This represents different start dates for different cryptocurrencies. We have:
 
-Jan-12 for BTC Feb-15 for XRP Apr-16 for ETH
+-   Jan-12 for BTC (Bitcoin)
+
+-   Feb-15 for XRP (Ripple)
+
+-   Apr-16 for ETH (Ethereum)
+
+-   Jul-17 for DGE (Dogecoin)
 
 The data used is up until May-25, which was the latest available month at time of writing.
 
@@ -129,8 +139,11 @@ We performed an array of stationarity tests on the Bitcoin dataset. In all cases
 The index data looks as follows:
 
 ```{r}
+#| labels: crypto over time
+#| echo: false
 
 market_data |> plot_open_over_time()
+
 ```
 
 ### Transformation(s)
@@ -143,9 +156,9 @@ In this analysis we have chosen to use log returns. This has the advantage of al
 
 We then added in a risk premium to reflect the best estimate of expected returns for this asset class. When choosing a value it is worth considering what type of asset cryptocurrency is. If it is indeed a currency, then a risk premium of 0% would seem appropriate given currency is not a growth asset. However cryptocurrency appears to act more like a commodity that investors purchase in the hope that someone will pay more for it in the future. This is more akin to a bar of gold than a dollar.
 
-Given the asset acts more like a commodity, we are assuming the expected return to be similar to expected inflation. At time of writing (May 2025) the inflation rate is high, however the Office for Budget Responsibility (OBR) has predicted from 2026 rates will be around 2%, with a range of around 0-5%. We have therefore set our risk premium to be 3%, closer to the current rate of inflation. \[https://obr.uk/efo/economic-and-fiscal-outlook-march-2025\]
+Given the asset acts more like a commodity, we are assuming the expected return to be similar to expected inflation. At time of writing (May 2025) the inflation rate is high, however the Office for Budget Responsibility (OBR) has predicted from 2026 rates will be around 2%, with a range of around 0-5%. We have therefore set our risk premium to be 3%, closer to the current rate of inflation. \[<https://obr.uk/efo/economic-and-fiscal-outlook-march-2025>\]
 
-It should be noted that when we combined these transformations, the mean of our datasets was very negative. For example the mean of log transformed BTC data, before adding any risk premium adjustments, was -58%. The reason is that the mean of a log returns dataset is lower than the mean of simple returns dataset by half of the variance of the simple returns. For most asset classes, this might not be an enormous number, but if cryptocurrency is anything, it’s a volatile asset. In the case of Bitcoin, the variance of the simple annualised returns was an enormous 106%, hence the very negative mean for the log transformed data.
+It should be noted that when we combined these transformations, the mean of our datasets was very negative. For example the mean of log transformed BTC data, before adding any risk premium adjustments, was -81%. This is due to the extreme volatility found in cryptocurrency, as well as the large returns in general.
 
 ### Annualised Change
 
@@ -153,7 +166,7 @@ We present the empirical data for our 4 chosen cryptocurrencies in the plots bel
 
 ```{r}
 #| label: annual change plot
-#| echo: true
+#| echo: false
 
 market_data |> 
   dplyr::filter(!is.na(log_returns)) |> 
@@ -165,9 +178,9 @@ Perhaps the most striking things from the data are:
 
 -   The annualised log changes are enormous. For comparison a similar distribution for UK Equities would be very rare to see a point beyond the ±50% range.
 
--   The 3 different cryptocurrencies are highly correlated in their movements. They almost move in complete synchronicity.
+-   The 4 different cryptocurrencies are highly correlated in their movements. They almost move in complete synchronicity.
 
--   The distributions have quite negative means. This is a consequence of our data transformations. The mean of log returns is lower than the mean of simple returns, by an amount proportional to the variance. This amount can often be trivial, however as the variance in these distributions is huge, the mean of log returns is a lot lower than 0%.
+-   The distributions have quite negative means. This is a consequence of our log transformations. This amount can often be trivial for standard assets, however as the variance of cryptocurrency returns is huge, the mean of log returns is a lot lower than 0%.
 
 ## Distribution Fitting
 
@@ -202,7 +215,7 @@ fitted_distributions |>
     distribution = factor(distribution, levels = names(distributions))
   )
 
-plot_limits <- c(-5, 5)
+plot_limits <- c(-6, 6)
 
 plot_data |>
   ggplot() +
@@ -239,25 +252,25 @@ plot_data |>
 
 From the QQ plot we can infer:
 
--   For BTC it is difficult to discern which distribution fits the best
+-   For BTC, ETH and XRP it seems like the Hyperbolic distribution fits the best. This is particularly true around the negative tail, which is the most important part of the distribution for our purposes.
 
--   For ETH it seems the Normal distribution fits best
+-   For DGE the Hyperbolic also seems to fit better around the negative tail. It should be noted that the unusual history of Dogecoin was hard to fit any distribution to. This is perhaps not surprising for an asset that is influenced more by Elon Musk tweets than any other market force.
 
--   For XRP it seems the Hyperbolic distribution fits best
+-   The Normal, Student T and Logistic distributions struggled around the tail. This is perhaps not surprising given all 3 are symmetrical distributions, and the actual historical returns are highly skewed.
 
 Also helpful in determining the best fit are fitting statistics. We have calculated the following values:
 
--   Residual Sum of Squares (RSS) - this is the sum of least square values from our QQ plots. The lower the value, the better the fit.
+-   *Residual Sum of Squares (RSS)* - this is the sum of least square values from our QQ plots. The lower the value, the better the fit.
 
--   Maximum Likelihood Estimator (MLE) - this is the likelihood of our empirical points upon our fitted distribution. The higher the value, the better the fit.
+-   *Maximum Likelihood Estimator (MLE)* - this is the likelihood of our empirical points upon our fitted distribution. The higher the value, the better the fit.
 
--   Akaike Information Criterion (AIC) - this is a fitting statistic based on the MLE. The lower the value, the better the fit.
+-   *Akaike Information Criterion (AIC)* - this is a fitting statistic based on the MLE. The lower the value, the better the fit.
 
--   Bayes Information Criterion (BIC) - similar to AIC, this statistic also penalises higher distributions with more parameters. The lower the value, the better the fit.
+-   *Bayes Information Criterion (BIC)* - similar to AIC, this statistic also penalises higher distributions with more parameters. The lower the value, the better the fit.
 
 We present these in the tables below. To make deciphering easier, we have applied a colour scale over the table with redder values being poorer and whiter values being better fitting statistics:
 
-::: panel-tabset
+::: {.panel-tabset style="color:grey;"}
 ```{r}
 #| label: tables of fitting stats
 #| echo: false  
@@ -342,11 +355,19 @@ fitting_stats_list |> create_tabset()
 ```
 :::
 
+It is clear for all 4 crypto assets, the Hyperbolic distribution has the better fitting statistics. This is true across the RSS, LogLik, AIC and BIC. The only occasion where Hyperbolic does not give the best result is for the BIC for Bitcoin. The BIC applies larger penalties for higher numbers of parameters, and as Hyperbolic has the most (at 4 parameters), it seems this is enough penalty to demote the Hyperbolic distribution. Despite this, it is quite clear Hyperbolic is preferable for every crypto asset analysed.
+
 ## Final Distributions
 
 Our final chosen fitted distributions are:
 
-BTC - Hyperbolic ETH - Hyperbolic XRP - Hyperbolic DGE - Hyperbolic
+-   BTC - Hyperbolic
+
+-   ETH - Hyperbolic
+
+-   XRP - Hyperbolic
+
+-   DGE - Hyperbolic
 
 Below we show the key percentiles for change in asset value over a one year time horizon. To make the results easier to interpret, we have converted the annualised log returns back into annualised simple returns.
 
@@ -397,11 +418,13 @@ It is quite clear that a 1-in-200 event would essentially wipe out all cryptocur
 
 Even the median of these distributions is very negative, with a 1-in-2 event seeing Bitcoin values almost half over the year. The reason we observe this is a consequence of using log transformed returns to fit our distributions to. This was explained at the end of the ‘Data Transformation’ section.
 
+### Specific Risk
+
 Another consideration to make would be to have an overlay for this risk distribution. This would be with the aim of recognizing that we have fitted our distribution to a fairly short time period of of around 8-13 years, which could mean there are no extreme tail events within the dataset.
 
-The risks to any single currency are not insignificant. https://www.hedgewithcrypto.com/ notes that there have been between 1,700 and 2,500 cryptocurrencies to collapse into zero value. The largest being ‘Luna’ which had been a top 10 crypto by market capitalisation before reaching naught.
+The risks to any single currency are not insignificant. <https://www.hedgewithcrypto.com/> notes that there have been between 1,700 and 2,500 cryptocurrencies to collapse into zero value. The largest being ‘Luna’ which had been a top 10 crypto by market capitalisation before collapsing to zero.
 
-This information may be a reason to apply an overlay to our current distributions. However we have decided not to at this point on grounds of materiality. We note that our current distributions already capture a very significant portion of downside risk. We might also hope that a highly diversified crypto portfolio could eliminate some of this risk specific to each individual crypto.
+This information may be a reason to apply an overlay to our current distributions. We have not explored this any further here. This specific risk could potentially be diversified away through investment in many different crypto assets.
 
 ## Correlations
 
@@ -492,6 +515,8 @@ corr_df |>
     name = "Correlation",
     labels = scales::number_format(accuracy = 0.1, style_positive = 'plus')
   ) +
+  scale_x_discrete(position = "top") +
+  scale_y_discrete(position = "left") +
   theme_classic() +
     guides(
     fill = guide_colourbar(position = "inside")
@@ -500,6 +525,7 @@ corr_df |>
     axis.line = element_blank(),
     axis.ticks = element_blank(),
     axis.title = element_blank(),
+    axis.text = element_text(size = 10),
     legend.position.inside = c(0.95, 0.15),
     legend.justification = c("right", "bottom")
   )
@@ -544,3 +570,11 @@ The following conclusions can be made:
 -   Crypto assets are positively correlated with the UK equity market. Given equity risk is often a significant risk for a major insurer, we expect many SCR biting scenarios to be at the negative end of the distribution for equities. Given this correlation, the crypto biting scenario will also likely be at the negative end of the distribution.
 
 -   Given all these points above, we would expect the overall biting scenario for a major insurer to see cryptocurrency value completely decimated. The conclusion reached is that **almost all assets held as cryptocurrency will increase the SCR of a company by a similar amount**. This conclusion might lead an actuary to question how capital efficient it is to invest in crypto.
+
+<br> <br>
+
+The code used to generate the results in this article can be found at: <https://github.com/paulbeardactuarial/crypto_calibration>
+
+<br>
+
+This article was written by Paul Beard and published on 30th May 2025
